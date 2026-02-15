@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>哼哼的学霸之路 V1.1.2</title>
+    <script src="questions.js"></script>
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+        body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: "Microsoft YaHei", sans-serif; background: #81D4FA; }
+        .page { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50; transition: opacity 0.3s; }
+        .hidden { display: none !important; opacity: 0; }
+        .bg-layer { position: fixed; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none; z-index: 1; }
+        .sky { background: linear-gradient(to bottom, #4FC3F7 0%, #E1F5FE 100%); width: 100%; height: 100%; position: relative; }
+        .sun { position: absolute; top: 5%; right: 5%; font-size: 6rem; filter: drop-shadow(0 0 15px orange); animation: roll 40s linear infinite; }
+        @keyframes roll { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .login-box { background:white; padding:40px; border-radius:30px; border:6px solid #0288D1; text-align:center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); width: 85%; max-width: 400px; }
+        .name-input { width: 100%; padding: 15px; font-size: 1.2rem; border: 3px solid #B3E5FC; border-radius: 15px; margin: 20px 0; text-align: center; }
+        .version-tag { font-size: 0.7rem; color: #BBB; margin-top: 15px; font-family: monospace; }
+        
+        .subject-card { background: white; padding: 20px; border-radius: 20px; width: 100%; margin: 10px 0; display: flex; justify-content: space-between; cursor: pointer; border: 2px solid #eee; }
+        .edu-box { background: white; padding: 25px; border-radius: 25px; border: 5px solid #009688; width: 92%; max-width: 500px; text-align: center; position: relative; }
+        .opt-btn { background: #E3F2FD; border: 2px solid #90CAF9; padding: 15px; border-radius: 15px; font-size: 1.3rem; font-weight: bold; color: #1565C0; cursor: pointer; margin: 8px 0; width: 100%; }
+        .opt-correct { background: #66BB6A !important; color: white !important; }
+        
+        .medal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
+        .medal-item { background: #F5F5F5; padding: 10px; border-radius: 15px; filter: grayscale(1); opacity: 0.5; text-align: center; }
+        .medal-item.unlocked { filter: grayscale(0); opacity: 1; background: #FFF9C4; border: 2px solid #FFD700; }
+    </style>
+</head>
+<body>
+
+<div class="bg-layer"><div class="sky"><div class="sun">☀️</div></div></div>
+
+<div id="app">
+    <div id="page-login" class="page">
+        <div class="login-box">
+            <h2 style="color:#0288D1;">冒险者登录 🎒</h2>
+            <input type="text" id="user-name" class="name-input" placeholder="输入大名存入高塔..." maxlength="8">
+            <button style="background:#FF5722; color:white; border:none; font-size:1.5rem; padding:15px 40px; border-radius:50px; cursor:pointer;" onclick="handleLogin()">开启冒险</button>
+            <div id="login-msg" style="font-size:0.8rem; color:#888; margin-top:10px;"></div>
+            <div class="version-tag">Version: 1.1.2 (JS Environment)</div>
+        </div>
+    </div>
+
+    <div id="page-menu" class="page hidden">
+        <h2 style="color:white; text-shadow: 2px 2px #333;">你好，<span id="display-name" style="color:#FFEB3B;"></span>！</h2>
+        <div style="width:90%; max-width:400px;">
+            <div class="subject-card" onclick="startLevel('chinese')"><span>📖 语文挑战</span><span>➡️</span></div>
+            <div class="subject-card" onclick="startLevel('math')"><span>🔢 数学挑战</span><span>➡️</span></div>
+            <div class="subject-card" onclick="startLevel('english')"><span>🦁 英语挑战</span><span>➡️</span></div>
+            <div class="subject-card" style="background:#FFD700" onclick="navTo('page-gallery')"><span>🏅 勋章陈列馆</span><span>➡️</span></div>
+        </div>
+    </div>
+
+    <div id="page-edu" class="page hidden">
+        <div class="edu-box">
+            <div id="q-text" style="font-size:1.8rem; font-weight:bold; margin-bottom:20px; min-height:80px;"></div>
+            <div id="q-opts"></div>
+            <button style="margin-top:20px; opacity:0.3; border:none; background:none;" onclick="navTo('page-menu')">退出</button>
+        </div>
+    </div>
+
+    <div id="page-gallery" class="page hidden">
+        <div style="background:white; width:90%; max-width:450px; border-radius:30px; border:8px solid #FFD700; padding:20px; text-align:center;">
+            <h2>🏆 我的勋章墙</h2>
+            <div class="medal-grid" id="medal-grid"></div>
+            <button style="margin-top:20px; background:#607D8B; color:white; border:none; padding:10px 30px; border-radius:20px;" onclick="navTo('page-menu')">返回</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentUser = "";
+    let globalState = { medals: 0 };
+    let session = { qIndex: 0, totalQ: 5, pool: [] };
+    let currentAns = '', isLocked = false;
+
+    function navTo(id) {
+        document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+        if (id === 'page-gallery') updateGalleryUI();
+    }
+
+    async function handleLogin() {
+        const name = document.getElementById('user-name').value.trim();
+        const msg = document.getElementById('login-msg');
+        if (!name) return alert("请写下你的名字！");
+
+        msg.innerText = "⏳ 正在连接 JS 魔法高塔...";
+        try {
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            });
+            globalState = await res.json();
+            currentUser = name;
+            document.getElementById('display-name').innerText = currentUser;
+            navTo('page-menu');
+        } catch (e) {
+            msg.innerText = "❌ 无法连接高塔，请确人服务器已启动！";
+        }
+    }
+
+    async function saveProgress() {
+        await fetch('/api/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: currentUser, medals: globalState.medals })
+        });
+    }
+
+    function startLevel(sub) {
+        session.qIndex = 0;
+        // 获取题库内容
+        const data = (sub === 'math') ? GAME_DATA.math_word_problems[1] : GAME_DATA[sub][1];
+        session.pool = [...data].sort(() => 0.5 - Math.random());
+        navTo('page-edu');
+        nextQuestion();
+    }
+
+    function nextQuestion() {
+        if (session.qIndex >= session.totalQ) {
+            globalState.medals++;
+            saveProgress();
+            alert("🎊 挑战成功！获得勋章！");
+            navTo('page-menu');
+            return;
+        }
+        isLocked = false;
+        let qObj = session.pool[session.qIndex];
+        currentAns = qObj.a;
+        document.getElementById('q-text').innerText = qObj.q;
+        const optsDiv = document.getElementById('q-opts');
+        optsDiv.innerHTML = '';
+        qObj.opts.forEach(o => {
+            const btn = document.createElement('button');
+            btn.className = 'opt-btn'; btn.innerText = o;
+            btn.onclick = () => checkAnswer(btn, o);
+            optsDiv.appendChild(btn);
+        });
+    }
+
+    function checkAnswer(btn, val) {
+        if (isLocked) return; isLocked = true;
+        if (val === currentAns) {
+            btn.classList.add('opt-correct');
+            setTimeout(() => { session.qIndex++; nextQuestion(); }, 800);
+        } else {
+            btn.style.background = "#EF5350";
+            setTimeout(() => { isLocked = false; btn.style.background = ""; }, 500);
+        }
+    }
+
+    function updateGalleryUI() {
+        const grid = document.getElementById('medal-grid');
+        const meds = [{c:1,i:'🥉'},{c:5,i:'🥈'},{c:10,i:'🥇'},{c:20,i:'💎'}];
+        grid.innerHTML = meds.map(m => `
+            <div class="medal-item ${globalState.medals >= m.c ? 'unlocked' : ''}">
+                <div style="font-size:2.5rem">${m.i}</div>
+                <div>${m.c}枚解锁</div>
+            </div>`).join('');
+    }
+</script>
+</body>
+</html>
